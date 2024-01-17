@@ -11,4 +11,6 @@ cargo build --release
 cargo run --release
 ```
 
+The world generation is a bit of a mess... i was trying to make trees grow..
+
 ![](image.png)
