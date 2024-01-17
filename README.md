@@ -1,6 +1,6 @@
 # voxeltorus
 
-A raycasting voxel engine written in Rust using [Macroquad](https://macroquad.rs/).
+A raycasting voxel engine written in Rust using [Macroquad](https://github.com/not-fl3/macroquad).
 
 To use it, clone the repository with git, then build and run:
 
