@@ -26,7 +26,7 @@ struct Camera {
 #[derive(Copy, Clone)]
 struct Voxel {
 	color: Vec4,
-	brightness: f32,
+	brightness: f32, // unused atm
 }
 type Neighbors = [usize; 6];
 type World = Vec<(Voxel, Neighbors)>;
@@ -72,58 +72,17 @@ fn build_world(nx: usize, ny: usize, nz: usize) -> World {
 			}
 		}
 	}
-	for i in 0..nx {
-		for k in 0..nz {
-            let n = furl(i, 0, k, ny, nz);
-            world[n].0.color = vec4(
-                randr(0.0, 0.1),
-                randr(0.0, 0.1),
-                randr(0.0, 0.1),
-                gen_range(1, 2) as f32
-            );
-            for j in 1..12 {
-				let n = furl(i, j, k, ny, nz);
+	for x in 0..nx {
+		for y in 0..(ny/2) {
+            for z in 0..nz {
+				let n = furl(x, y, z, ny, nz);
 				world[n].0.color = vec4(
-					randr(0.4, 0.6),
-					randr(0.4, 0.6),
-					randr(0.4, 0.6),
-					gen_range(1, 2) as f32
+					randr(0.5, 0.55),
+					randr(0.5, 0.55),
+					randr(0.5, 0.55),
+					gen_range(0, 2) as f32
 				);
 			}
-			for j in 12..16 {
-				let n = furl(i, j, k, ny, nz);
-				world[n].0.color = vec4(
-					randr(0.5, 0.6),
-					randr(0.3, 0.4),
-					randr(0.1, 0.2),
-					gen_range(1, 2) as f32
-				);
-			}
-			let n = furl(i, 16, k, ny, nz);
-            world[n].0.color = vec4(
-                randr(0.1, 0.2),
-                randr(0.7, 0.8),
-                randr(0.1, 0.2),
-                gen_range(0, 2) as f32
-            );
-		}
-	}
-	// place trees
-	for _ in 0..200 {
-		let i = gen_range(0, nx);
-		let k = gen_range(0, nz);
-		let n = furl(i, 16, k, ny, nz);
-		world[n].0.color = vec4(0.5, 0.4, 0.3, 1.0);
-	}
-	return world;
-	
-	// place lamps
-	
-	for _ in 0..200 {
-		let i = gen_range(0, world.len());
-		if world[i].0.color.w == 1.0 {
-			world[i].0.color = vec4(1.0, 1.0, 1.0, 1.0);
-			world[i].0.brightness = 1.0;
 		}
 	}
 	return world;
@@ -177,22 +136,6 @@ fn update(world: &mut World, delta_t: f32) {
 		for j in world[i].1 {
 			neighbor_sum = neighbor_sum + world[j].0.color;
 		}
-		if world[i].0.color.w == 1.0 && 3.0 <= neighbor_sum.w && neighbor_sum.w <= 6.0 {
-			world[i].0.color.w = 1.0;
-		} else if world[i].0.color.w < 1.0 && 3.0 <= neighbor_sum.w && neighbor_sum.w <= 6.0 {
-			world[i].0.color.w = 1.0;
-		} else {
-			world[i].0.color.w = 0.0;
-		}
-	}
-}
-fn update2(world: &mut World, delta_t: f32) {
-	for _ in 0..((delta_t * (world.len() as f32)) as usize)  {
-		let i = gen_range(0, world.len() - 1);
-		let mut neighbor_sum = vec4(0.0, 0.0, 0.0, 0.0);
-		for j in world[i].1 {
-			neighbor_sum = neighbor_sum + world[j].0.color;
-		}
 		if world[i].0.color.w == 1.0 && 4.0 <= neighbor_sum.w && neighbor_sum.w <= 6.0 {
 			world[i].0.color.w = 1.0;
 		} else if world[i].0.color.w < 1.0 && 3.0 <= neighbor_sum.w && neighbor_sum.w <= 6.0 {
@@ -224,15 +167,16 @@ fn update_brightness(world: &mut World) {
 		}
 	}
 }
-#[macroquad::main("VoxelTorus")]
+#[macroquad::main("voxeltorus")]
 async fn main() {
 	request_new_screen_size(RESOLUTION.0, RESOLUTION.1);
+	next_frame().await;
+	
+	// Build world
 	let mut world = build_world(WORLDSIZE[0], WORLDSIZE[1], WORLDSIZE[2]);
 	update(&mut world, 10.0);
-	//for _ in 0..20 {
-	//	update_brightness(&mut world);
-	//}
-	next_frame().await;
+	
+	// Place camera
 	let mut camera = Camera {
 		i: 0,
 		position: vec3(0.5, 0.5, 0.5),
@@ -243,16 +187,19 @@ async fn main() {
 		screen: SCREEN,
 	};
 	let mut screen: Vec<Vec<(Vec4, f32)>> = vec![vec![(vec4(0.0, 0.0, 0.0, 0.0), 0.0); camera.screen.1]; camera.screen.0];
-	//let mut depth_field: Vec<Vec<f32>> = vec![vec![0.0; camera.screen.1]; camera.screen.0];
 	let mut grabbed = true;
-	while world[camera.i].0.color[3] == 1.0 {
+	
+	// Unstuck camera
+	while world[camera.i].0.color.w == 1.0 {
 		camera.i = world[camera.i].1[2];
 	}
 	let mut selected = Voxel {
 		color: vec4(0.5, 0.4, 0.3, 1.0),
 		brightness: 0.8,
 	};
+	
 	loop {
+		// Take player input
 		if is_mouse_button_released(MouseButton::Left) {
 			grabbed = true;
 		}
@@ -329,7 +276,9 @@ async fn main() {
 				world[i].0.brightness = selected.brightness;
 			}
 		}
-		update2(&mut world, 0.01);
+		// Update world
+		update(&mut world, get_frame_time());
+		// Draw pixels
 		screen.par_iter_mut().enumerate().for_each(|(i, screen_i)| {
 			screen_i.par_iter_mut().enumerate().for_each(|(j, screen_i_j)| {
 				let right_coeff = (((i as f32) / (camera.screen.0 as f32) - 0.5) * camera.fov.0).atan();
@@ -340,24 +289,11 @@ async fn main() {
 				if rayhit_i == target_i {
 					fade = 0.5*(fade + 1.0);
 				}
-				//let (shortstop_i, _, _) = raycast(&world, rayhit_i, rayhit_x, -ray, 1);
-				//let brightness = clamp(world[shortstop_i].0.brightness, 0.0, 1.0);
-				//*screen_i_j = (1.0 - brightness)*fade*AMBIENT + brightness*(1.0 - fade)*world[rayhit_i].0.color;
-                (*screen_i_j).0 = fade*AMBIENT + (1.0 - fade)*world[rayhit_i].0.color;
+				(*screen_i_j).0 = fade*AMBIENT + (1.0 - fade)*world[rayhit_i].0.color;
 				(*screen_i_j).1 = distance;
 			})
 		});
-		// depth of field lmaoo
-		//for _ in 0..10 {
-		//	for i in 1..camera.screen.0-1 {
-		//		for j in 1..camera.screen.1-1 {
-		//			screen[i][j].0 = screen[i][j].0 + 0.2*(1.7321*screen[i][j].1/(VIEW_DISTANCE as f32))*(-4.0*screen[i][j].0 + screen[i+1][j].0 + screen[i-1][j].0 + screen[i][j+1].0 + screen[i][j-1].0);
-		//		}
-		//	}
-		//}
-		
-		//let mut screen: Vec<Vec<Vec4>> = vec![vec![vec4(0.0, 0.0, 0.0, 0.0); camera.screen.1]; camera.screen.0];
-		
+		// Render pixels to screen
 		screen.iter().enumerate().for_each(|(i, screen_i)| {
 			screen_i.iter().enumerate().for_each(|(j, _)| {
 				draw_rectangle(
@@ -369,7 +305,7 @@ async fn main() {
 				);
 			})
 		});
-		draw_text(&format!("VoxelTorus {}", (1.0 / get_frame_time()) as usize), 2.0, 16.0, 24.0, WHITE);
+		draw_text(&format!("{}", (1.0 / get_frame_time()) as usize), 2.0, 16.0, 24.0, WHITE);
 		next_frame().await;
 	}
 }
